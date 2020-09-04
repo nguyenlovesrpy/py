@@ -1,0 +1,53 @@
+---
+title: "Marketing Funnel with Olist"
+author: "Nguyen_LSCM"
+date: "8/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br> 
+
+<font size = '10'> ** How to join Marketing Funnel Dataset with Brazilian E-Commerce Public Dataset </font>
+
+ - Olist has published the Brazilian E-Commerce Public Dataset a few months ago, and how we are publishing this Marketing Funnel Dataset. You are able to join both datasets and observe the customer journey, since the moment he first entered out marketing funnel.
+ 
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ 
+library(reticulate)
+library(tidyverse)
+
+``` 
+ 
+# Files from both datasets 
+
+```{python}
+
+import numpy as np # linear algebra 
+import pandas as pd # data processing, CSV file I/O (e.g pd.read_csv)
+import os 
+
+print(' ### Marketing Funnel by Olist ###')
+
+for idx, file in enumerate(
+os.listdir('C:/Users/DellPC/Desktop/Corner/Py_source_code/Project/Olist')):
+     print(idx, '_', file)
+print('\n-----------------------------------\n')
+
+```
+
+# Data Schema 
+
+- This dataset may be easily linked to the Brazilian Ecommerce Public Dataset, just follow the data schema presented bellow: 
+
+![Brazil_Ecommerce](C:/Users/DellPC/Desktop/Corner/Py_source_code/Project/Olist/schema.png)
+
+![Marketing_Funnel](C:/Users/DellPC/Desktop/Corner/Py_source_code/Project/Olist/marketing_schema.png)
+
+
+
+
+
