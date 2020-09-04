@@ -1,0 +1,406 @@
+---
+title: "SARIMAX- Item Demand Forecasting"
+author: "Nguyen_LSCM"
+date: "8/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(reticulate)
+library(tidyverse)
+setwd('C:/Users/DellPC/Desktop/Corner/Py_source_code/Project/Store Item Demand Forecasting')
+
+```
+
+
+<font size = '10'> How to use SARIMAX </font>
+
+<br>
+
+**Introduction**
+
+The order explain is as follows: 
+
+1. Overview of the data 
+2. Model choice
+3. Correlograms 
+4. ARIMA
+5. SARIMA
+6. Make features1
+7. ARIMAX 
+8. SARIMAX 
+9. Model's summary check
+10. Make features2
+11. Search best parameters 
+12. Submit Prediction
+
+
+# Modules import 
+
+```{python}
+
+import warnings 
+warnings.filterwarnings('ignore')
+import pandas as pd 
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set(font='IPAGothic')
+import numpy as np 
+import statsmodels.api as sm
+
+```
+
+# Dataset reading 
+
+```{python}
+
+train = pd.read_csv('train.csv', parse_dates = ['date'], index_col = 'date')
+test = pd.read_csv('test.csv', parse_dates = ['date'], index_col ='date')
+
+df = pd.concat([train, test], sort = True)
+
+sample = pd.read_csv('sample_submission.csv')
+
+train.dtypes
+train.shape
+df.head()
+
+
+buf = df[(df.item==1)&(df.store==1)].copy()
+
+```
+
+
+# Oveview of the data 
+
+Let's see overview of the data 
+
+We can use seasonal_decompose method to separate into four graphs (Observed, Trend, Seasonal, Residual)
+
+What is seasonal_decompose method parameter 'freq'?
+
+    - freq = 365: trend of year 
+    - freq = 30: trend of month
+    - freq = 7: trend of week 
+    
+We choose 'freq=365' because this data is long term.
+
+```{python}
+
+res = sm.tsa.seasonal_decompose(buf.sales.dropna(), freq = 365)
+
+fig = res.plot()
+fig.set_figheight(8)
+fig.set_figwidth(15)
+
+plt.show()
+
+
+
+```
+
+
+Clearly, this data is growing (has a trend)
+
+# Train & Test Data split
+
+```{python}
+
+tr_start, tr_end = '2014-01-01', '2017-09-30'
+te_start, te_end = '2017-10-01', '2017-12-31'
+
+tra = buf['sales'][tr_start:tr_end].dropna()
+tes = buf['sales'][te_start:te_end].dropna()
+
+tra
+tes
+
+```
+
+each models have parameters: 
+
+- ARMA model: (p, q) 
+- ARIMA model: (p, d, q)
+- SARIMA model: (p, d, q)(sp, sd, s)
+- ARIMAX model: (p, d, q) + exog
+- SARIMAX model: (p, d, q)(sp, sd, sq, s) + exog
+
+
+# Model choice
+
+We have to choice  a model. After we confirm that a data has a trend (is stationary) or not.
+
+For example, ARMA model is premised that the data is stationary.
+
+We can use ADF-test to check stationary of the data
+
+(p <0.05)
+
+H0: This time series is not stationary
+H1: This time series is stationary 
+
+
+
+
+```{python}
+
+# ADF-test (original- time series)
+
+res = sm.tsa.adfuller(buf['sales'].dropna(), regression='ct')
+
+print('p-value:{}'.format(res[1]))
+
+```
+
+
+```{python}
+
+# ADF-test (differenced - time - series)
+
+res = sm.tsa.adfuller(buf['sales'].diff().dropna(), regression='c')
+
+print('p-value:{}'.format(res[1]))
+
+
+```
+
+It's important to choose carefully a period of the data which will be used in predicting. Because, The results depend on the period.
+
+
+```{python}
+
+# ADF-test(Original - time -series)
+
+res = sm.tsa.adfuller(buf['sales']['2015-01-01':].dropna(), regression='ct')
+
+print('p-value:{}'.format(res[1]))
+
+```
+
+
+```{python}
+
+# ADF-test (differenced - time - series)
+
+res = sm.tsa.adfuller(buf['sales']['2015-01-01':].diff().dropna(), regression='c')
+
+print('p-value:{}'.format(res[1]))
+
+
+
+```
+
+What is adfuller method parameter 'regression'? 
+
+- 'c': constant only (default)
+- 'ct': constant and trend 
+- 'ctt': constant, and linear and quadratic trend 
+- 'nc': no constant, no trend
+
+
+Usually, We try to testing both data Original and Diff. Like the result above, when Orignal-data is not stationary and diff data is not stationary, the time series is called unit root process. For unit root process, we use ARIMA or SARIMA 
+
+From results, we decided that Original time series is not stational. We will try to using ARIMA model.
+
+
+# Correlograms 
+
+Autocorrelogram & Partital Autocorrelogram is usedful that to estimate each models parameters 
+
+```{python}
+
+# we use tra.diff() (differenced data), because this is time series is unit root process. 
+
+fig, ax = plt.subplots(2, 1, figsize = (20, 10))
+
+fig = sm.graphics.tsa.plot_acf(tra.diff().dropna(), lags=50, ax =ax[0])
+fig = sm.graphics.tsa.plot_pacf(tra.diff().dropna(), lags=50, ax =ax[1])
+
+plt.show()
+
+
+```
+
+From results, look like ARIMA (p=7, d=1,q=?) model.
+
+if we use arma_order_select_ic method, it is very easy to search  best parameters(p,q) of ARMA mode
+
+
+```{python}
+
+resDiff = sm.tsa.arma_order_select_ic(tra, max_ar =7, max_ma=7, ic = 'aic', trend ='c')
+
+print('ARMA(p,q) = ', resDiff['aic_min_order'], 'is the best.')
+
+```
+
+
+We got parameters (7, 1, 7)
+
+# ARIMA model
+
+
+```{python}
+
+arima = sm.tsa.statespace.SARIMAX(tra, 
+order = (7, 1, 7), 
+freq = 'D',
+seasonal_order =(0, 0, 0, 0), 
+enforece_stationarity =False,
+enforce_invertibility = False).fit()
+
+arima.summary()
+
+# We can use SARIMAX model as ARIMAX when seasonal_order is (0, 0, 0, 0)
+
+```
+
+This model's resid have few autocorrelation.
+It means that We were able to make a good model.
+
+
+```{python}
+
+res = arima.resid
+fig,ax = plt.subplots(2,1,figsize=(15,8))
+fig = sm.graphics.tsa.plot_acf(res, lags=50, ax=ax[0])
+fig = sm.graphics.tsa.plot_pacf(res, lags=50, ax=ax[1])
+plt.show()
+
+```
+
+
+```{python}
+
+from sklearn.metrics import mean_squared_error
+pred = arima.predict(tr_end,te_end)[1:]
+
+print('ARIMA model MSE:{}'.format(mean_squared_error(tes,pred)))
+
+
+```
+
+
+```{python}
+
+pd.DataFrame({'test':tes,'pred':pred}).plot();plt.show()
+```
+
+
+# SARIMA
+
+```{python}
+
+#sarima = sm.tsa.statespace.SARIMAX(tra,order=(7,2,7),seasonal_order=(7,3,7,4),
+                                ##sarima.summary()
+
+```
+
+```{python}
+'''
+fig,ax = plt.subplots(2,1,figsize=(15,8))
+fig = sm.graphics.tsa.plot_acf(res, lags=50, ax=ax[0])
+fig = sm.graphics.tsa.plot_pacf(res, lags=50, ax=ax[1])
+plt.show()
+
+
+from sklearn.metrics import mean_squared_error
+pred = sarima.predict(tr_end,te_end)[1:]
+print('SARIMA model MSE:{}'.format(mean_squared_error(tes,pred)))
+
+
+pd.DataFrame({'test':tes,'pred':pred}).plot();plt.show()
+
+'''
+
+```
+
+It seems that SARIMA model's prediction is better than ARIMA model's.
+
+Next,We try to ARIMAX and SARIMAX model.
+ARIMAX(SARIMAX) is what added exogenous regressors to ARIMA(SARIMA) .
+
+# Make features1 
+
+Let's try to make some features.
+
+            - month
+            - dayofweek
+            - sales_shifted_364(1year_shift)
+            - sales_shifted_728(2year_shift)
+            - Sales gropu by month
+            
+```{python}
+
+
+buf.groupby(buf.index.month).sales.mean().plot();plt.show()
+
+```
+
+
+Sales groupby day of the week 
+
+```{python}
+
+
+buf.groupby(buf.index.weekday).sales.mean().plot(); plt.show()
+
+```
+
+
+```{python}
+
+plt.plot(buf[0:363].sales.dropna().values)
+plt.plot(buf[364:727].sales.dropna().values);plt.show()
+
+
+```
+
+
+
+```{python}
+
+'''
+buf = df[(df.item==1)&(df.store==1)].copy()#reset buf
+#month one hot encoding
+buf['month'] = buf.index.month
+month_dummies = pd.get_dummies(buf['month'])
+month_dummies.columns = ['month-'+ str(m) for m in range(1,13)]
+buf = pd.concat([buf, month_dummies], axis=1, join_axes=[buf.index]).drop(['month'],axis=1)
+
+
+#dayofweek one hot encoding
+buf['dayofweek'] = buf.index.weekday
+week_dummies = pd.get_dummies(buf['dayofweek'])
+week_dummies.columns = ['dayofweek-'+ str(w) for w in range(0,7)]
+buf = pd.concat([buf, week_dummies], axis=1, join_axes=[buf.index]).drop(['dayofweek'],axis=1)
+
+
+#Satday,Sunday
+buf['weekend'] = (buf.index.dayofweek>4).astype(int)#Satday,Sunday
+#Sunday
+#buf['sunday'] = (buf.index.dayofweek==6).astype(int)#Satday,Sunday
+'''
+```
+
+```{python}
+
+'''
+#shifted data
+#buf['sales_shifted_91'] = buf.sales.shift(91)
+buf['sales_shifted_728'] = buf.sales.shift(728)
+buf['sales_shifted_364'] = buf.sales.shift(364)
+
+tr_start,tr_end = '2015-01-01','2017-09-30'
+te_start,te_end = '2017-10-01','2017-12-31'
+tra = buf['sales'][tr_start:tr_end].dropna()
+tes = buf['sales'][te_start:te_end].dropna()
+exog_train = buf.drop(['id','store','item','sales'],axis = 1)[tr_start:tr_end].dropna()
+exog_test = buf.drop(['id','store','item','sales'],axis = 1)[te_start:te_end].dropna()
+
+'''
+```
+
+

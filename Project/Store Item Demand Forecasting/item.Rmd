@@ -1,0 +1,387 @@
+---
+title: "EDA + Prophet _ MLP Neural Network Forecasting"
+author: "Nguyen_LSCM"
+date: "8/23/2020"
+output: html_document
+---
+
+
+
+```{r}
+
+
+
+setwd('C:/Users/DellPC/Desktop/Corner/Py_source_code/Project/Store Item Demand Forecasting')
+
+```
+
+# R packages
+
+```{r}
+
+suppressMessages(library(tidyverse))
+suppressMessages(library(zoo))
+
+```
+
+
+```{r}
+
+# Set up for python environment in Rstudio
+
+
+library(reticulate)
+
+
+
+```
+
+
+<font size = '10'> EDA + Prophet + MLP Neural Network Forecasting </font>
+
+<br>
+
+# Execitove Summary: 
+
+This tutorial consists of comprehensive Exploratory Data Analysis with Prophet and MLP Neural Network Forecast Modeling for **Store Item Demand Forecasting Challenge** competition. The objective of the problem is to forecast 3 months of sales for 50 different items at 10 different stores using the 5 years hisotry of sales.
+
+The data contains the following files: 
+
+     1. train.csv
+     2. test.csv
+     3. Sample submission.csv
+
+
+**Data Fields**
+
+date - Date of the sale data. There are no holiday effects or store closures.
+store - Store ID
+item - Item ID 
+sales - Number of items sold at a particular store on a particular date.
+
+
+# Introduction: 
+
+ - Forecasting is something that is a little domain specific. 
+
+# What is time series? 
+
+ - A time series is a sequence of observations collected at some time intervals. Time plays an important role here. The observations collected are dependent on the time at which it is collected.
+ 
+ - The sale of an item say bread in a retail store like Walmart will be a time series. The sale could be at daily level of hourly level. The number of people flying from NewYork to Spain on daily basic is a time series
+ 
+ The difference between a time series and a normal series
+ - Time series is dependent on the time
+ 
+# Frequency 
+
+- Frequency is the number of observations per cycle. Now, how you define what a cycle is for a time series? 
+
+Say, you have electricity consumption at Bangalore at hourly level. The cycle could be a day, a week or even annual. I will cover what frequency would be for all different type of time series. 
+
+Before, we proceed I will reiterate this. 
+
+**Frequency**: is the number of observations per cycle. 
+
+
+
+# Load libraries 
+
+```{python}
+
+import numpy as np 
+import pandas as pd
+
+from datetime import datetime
+
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.offline as pyo
+from plotly.colors import n_colors
+from plotly.subplots import make_subplots
+
+from sklearn.preprocessing import MinMaxScaler
+from fbprophet import Prophet
+
+
+
+```
+
+
+# Load Datasets
+
+```{python}
+
+train = pd.read_csv('train.csv')
+
+test = pd.read_csv('test.csv')
+
+
+```
+
+# Structure & Summary of the Data 
+
+
+```{python}
+
+print(f'The train data set has  {train.shape[0]} rows and {train.shape[1]} columns')
+
+train.dtypes
+print(train.describe())
+
+print('The test data set has {test.shape[0]} rows and {test.shape[1]} columns')
+
+test.dtypes
+print(test.describe())
+
+
+print('The summary of train sales is:')
+
+print(train.sales.describe)
+
+
+```
+
+
+
+
+
+
+```{python}
+
+# Nhap 
+
+train.dtypes
+
+dates = []
+
+for date in train.date.values.tolist():
+     d = datetime.strptime(date, '%Y-%m-%d')
+     dates.append(d)
+
+
+```
+
+# Extraction of Year and Month of Year: 
+
+
+```{python}
+
+
+train['date'] = pd.to_datetime(train['date'], format = '%Y-%m-%d')
+
+
+
+```
+
+```{r}
+
+df = py$train
+
+yearmonth = df %>% transmute(date = as.factor(as.yearmon(as.Date(as.character(date)))))
+
+
+```
+
+
+```{python}
+
+train['year']  = train['date'].dt.year 
+train['month']  = train['date'].dt.month 
+train['yearmonth'] = r.yearmonth
+
+train.head(5)
+
+```
+
+
+# Histogram of Sale Price 
+
+```{python}
+
+fig = px.colors.qualitative.swatches()
+
+pyo.plot(fig, filename='discrete_color_plotly.html', auto_open=False)
+
+print(px.colors.qualitative.Pastel)
+
+```
+
+```{r}
+
+htmltools::includeHTML('discrete_color_plotly.html')
+
+
+```
+
+```{python}
+
+fig = go.Figure()
+
+fig.add_trace(go.Histogram(x= train['sales'], marker_color = 'rgb(139, 224, 164)'))
+
+fig.update_layout(title = 'Histogram of Sale Price', xaxis_title = 'Sales Price')
+
+pyo.plot(fig, filename ='histogram_sales.html', auto_open = False)
+
+
+```
+
+```{r}
+
+htmltools::includeHTML('histogram_sales.html')
+
+```
+
+**Therefore our Sales Price follows Positively Skewed Distribution.**
+
+
+# Growth by date
+
+
+```{python}
+
+MSP = train[['date', 'sales']].groupby('date', as_index = False).sum()
+
+
+```
+
+
+```{r}
+
+MSP = py$MSP 
+
+MSP$rate = c(0, 100*diff(MSP$sales)/MSP[-nrow(MSP),]$sales)
+
+rate = MSP$rate
+
+```
+
+
+```{python}
+
+
+
+MSP['rate'] = r.rate
+
+
+
+fig = make_subplots(rows=2, cols =1,
+                     subplot_titles = ('The Growth of Sale Prices by date', 'Change rate of Sale Price'))
+
+
+fig.add_trace(
+go.Scatter(x=MSP['date'], y=MSP['sales'], mode='markers', 
+                                 marker =dict(
+                                 color = '#DA16FF',
+                                 size = 8)), row=1, col=1
+                                                                )
+                                                                
+                                                                
+fig.add_trace(go.Scatter(x=MSP['date'], y=MSP['rate'], mode='lines', marker_color ='grey'), row = 2, col = 1)
+
+fig.update_layout(height=800, width=1000)
+
+pyo.plot(fig, filename='growth_sale.html', auto_open=False)
+
+
+```
+
+
+
+```{r, fig.height=10, fig.width=14}
+
+htmltools::includeHTML('growth_sale.html')
+
+
+```
+
+
+1. The Growth of the Sales Price are Multiplicative with increasing TREND and SEASONALITY
+
+2. The Change in Rate of Sales Price is looking constant by Date. But the Growth Rate TRUE at Yearly/ Monthly Level. Let's check it out
+
+# Growth by Month of Different Year
+
+
+```{python}
+
+MSP = train[['month', 'sales']].groupby('month', as_index = False).sum()
+
+
+```
+
+
+```{r}
+
+MSP = py$MSP 
+
+MSP$rate = c(0, 100*diff(MSP$sales)/MSP[-nrow(MSP),]$sales)
+
+rate = MSP$rate
+
+```
+
+
+```{python}
+
+
+
+MSP['rate'] = r.rate
+
+
+
+fig = make_subplots(rows=2, cols =1,
+                     subplot_titles = ('The Growth of Sale Prices by date', 'Change rate of Sale Price'))
+
+
+fig.add_trace(
+go.Scatter(x=MSP['month'], y=MSP['sales'], mode='markers', 
+                                 marker =dict(
+                                 color = '#DA16FF',
+                                 size = 8)), row=1, col=1
+                                                                )
+                                                                
+                                                                
+fig.add_trace(go.Scatter(x=MSP['month'], y=MSP['rate'], mode='lines', marker_color ='grey'), row = 2, col = 1)
+
+fig.update_layout(height=800, width=1000)
+
+pyo.plot(fig, filename='growth_sale_month.html', auto_open=False)
+
+
+```
+
+
+
+```{r, fig.height=10, fig.width=14}
+
+htmltools::includeHTML('growth_sale_month.html')
+
+
+```
+
+
+# Prophet
+
+## Background 
+
+When you want to forecast time series data in R, you typically would use a package called 'forecast', with which you can use models like ARIMA 
+
+   - But then, beginning of 2017, a team at Facebook released 'Prophet', which utilizes a Bayensian based curve fitting method to forecast the time series data.
+   
+   
+a. The cool thing about Prophet is that it doesn’t require much prior knowledge or experience of forecasting time series data since it automatically finds seasonal trends beneath the data and offers a set of ‘easy to understand’ parameters. Hence, it allows non-statisticians to start using it and get reasonably good results that are often equal or sometimes even better than the ones produced by the experts.
+
+b. Prophet modelling can be able to detect the Change Points in time series data.
+
+c. We can include the holidays (play-offs & super-bowls) in our data. Details has been added later.
+
+d. We can regularise the parameters by means of Bayesian oprimisation with cross-validation.
+
+e. We can incorporate the multiplicative-seasonality and determine the uncertainty intervals in the data.
+
+f. Additional regressors can be added to the linear part of the model using the add_regressor method or function. A column with the regressor value will need to be present in both the fitting and prediction data-frames.
+
+
+## Modeling Framework & Theory
